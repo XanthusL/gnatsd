@@ -160,7 +160,7 @@ func TestNewAccountRequireNew(t *testing.T) {
 	opts.AllowNewAccounts = true
 	s = New(&opts)
 
-	c, cr, _ = newClientForServer(s)
+	c, _, _ = newClientForServer(s)
 	err := c.parse(connectOp)
 	if err != nil {
 		t.Fatalf("Received an error trying to create an account: %v", err)
