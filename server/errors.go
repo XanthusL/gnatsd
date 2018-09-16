@@ -48,4 +48,11 @@ var (
 	// ErrClientConnectedToRoutePort represents an error condition when a client
 	// attempted to connect to the route listen port.
 	ErrClientConnectedToRoutePort = errors.New("Attempted To Connect To Route Port")
+
+	// ErrAccountExists is returned when an account is attempted to be registered
+	// but already exists.
+	ErrAccountExists = errors.New("Account Already Exists")
+
+	// ErrBadAccount represents a malformed or incorrect account.
+	ErrBadAccount = errors.New("Bad Account")
 )

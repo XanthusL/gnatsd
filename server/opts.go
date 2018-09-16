@@ -62,6 +62,7 @@ type Options struct {
 	MaxSubs          int           `json:"max_subscriptions,omitempty"`
 	Nkeys            []*NkeyUser   `json:"-"`
 	Users            []*User       `json:"-"`
+	Accounts         []*Account    `json:"-"`
 	Username         string        `json:"-"`
 	Password         string        `json:"-"`
 	Authorization    string        `json:"-"`

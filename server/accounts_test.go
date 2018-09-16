@@ -1,0 +1,121 @@
+// Copyright 2018 The NATS Authors
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package server
+
+import (
+	"strings"
+	"testing"
+)
+
+func simpleAccountServer(t *testing.T) *Server {
+	opts := defaultServerOptions
+	s := New(&opts)
+
+	// Now create two accounts.
+	_, err := s.RegisterAccount("foo")
+	if err != nil {
+		t.Fatalf("Error creating account 'foo': %v", err)
+	}
+	_, err = s.RegisterAccount("bar")
+	if err != nil {
+		t.Fatalf("Error creating account 'bar': %v", err)
+	}
+	return s
+}
+
+func TestRegisterDuplicateAccounts(t *testing.T) {
+	s := simpleAccountServer(t)
+	if _, err := s.RegisterAccount("foo"); err == nil {
+		t.Fatal("Expected an error registering 'foo' twice")
+	}
+}
+
+func TestAccountIsolation(t *testing.T) {
+	s := simpleAccountServer(t)
+	fooAcc := s.LookupAccount("foo")
+	barAcc := s.LookupAccount("bar")
+	if fooAcc == nil || barAcc == nil {
+		t.Fatalf("Error retrieving accounts for 'foo' and 'bar'")
+	}
+	cfoo, crFoo, _ := newClientForServer(s)
+	if err := cfoo.RegisterWithAccount(fooAcc); err != nil {
+		t.Fatalf("Error register client with 'foo' account: %v", err)
+	}
+	cbar, crBar, _ := newClientForServer(s)
+	if err := cbar.RegisterWithAccount(barAcc); err != nil {
+		t.Fatalf("Error register client with 'bar' account: %v", err)
+	}
+
+	// Make sure they are different accounts/sl.
+	if cfoo.acc == cbar.acc {
+		t.Fatalf("Error, accounts the same for both clients")
+	}
+
+	// Now do quick test that makes sure messages do not cross over.
+	// setup bar as a foo subscriber.
+	go cbar.parse([]byte("SUB foo 1\r\nPING\r\nPING\r\n"))
+	l, err := crBar.ReadString('\n')
+	if err != nil {
+		t.Fatalf("Error for client 'bar' from server: %v", err)
+	}
+	if !strings.HasPrefix(l, "PONG\r\n") {
+		t.Fatalf("PONG response incorrect: %q\n", l)
+	}
+
+	go cfoo.parse([]byte("SUB foo 1\r\nPUB foo 5\r\nhello\r\nPING\r\n"))
+	l, err = crFoo.ReadString('\n')
+	if err != nil {
+		t.Fatalf("Error for client 'foo' from server: %v", err)
+	}
+
+	matches := msgPat.FindAllStringSubmatch(l, -1)[0]
+	if matches[SUB_INDEX] != "foo" {
+		t.Fatalf("Did not get correct subject: '%s'\n", matches[SUB_INDEX])
+	}
+	if matches[SID_INDEX] != "1" {
+		t.Fatalf("Did not get correct sid: '%s'\n", matches[SID_INDEX])
+	}
+	checkPayload(crFoo, []byte("hello\r\n"), t)
+
+	// Now make sure nothing shows up on bar.
+	l, err = crBar.ReadString('\n')
+	if err != nil {
+		t.Fatalf("Error for client 'bar' from server: %v", err)
+	}
+	if !strings.HasPrefix(l, "PONG\r\n") {
+		t.Fatalf("PONG response incorrect: %q\n", l)
+	}
+}
+
+func TestAccountFromOptions(t *testing.T) {
+	opts := defaultServerOptions
+	opts.Accounts = []*Account{
+		&Account{Name: "foo"},
+		&Account{Name: "bar"},
+	}
+	s := New(&opts)
+
+	if la := len(s.accounts); la != 2 {
+		t.Fatalf("Expected to have a server with two accounts, got %v", la)
+	}
+	// Check that sl is filled in.
+	fooAcc := s.LookupAccount("foo")
+	barAcc := s.LookupAccount("bar")
+	if fooAcc == nil || barAcc == nil {
+		t.Fatalf("Error retrieving accounts for 'foo' and 'bar'")
+	}
+	if fooAcc.sl == nil || barAcc.sl == nil {
+		t.Fatal("Expected Sublists to be filled in on Opts.Accounts")
+	}
+}
