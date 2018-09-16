@@ -119,3 +119,57 @@ func TestAccountFromOptions(t *testing.T) {
 		t.Fatal("Expected Sublists to be filled in on Opts.Accounts")
 	}
 }
+
+func TestNewAccountsFromClients(t *testing.T) {
+	opts := defaultServerOptions
+	s := New(&opts)
+
+	c, cr, _ := newClientForServer(s)
+	connectOp := []byte("CONNECT {\"account\":\"foo\"}\r\n")
+	go c.parse(connectOp)
+	l, _ := cr.ReadString('\n')
+	if !strings.HasPrefix(l, "-ERR ") {
+		t.Fatalf("Expected an error")
+	}
+
+	opts.AllowNewAccounts = true
+	s = New(&opts)
+
+	c, _, _ = newClientForServer(s)
+	err := c.parse(connectOp)
+	if err != nil {
+		t.Fatalf("Received an error trying to create an account: %v", err)
+	}
+}
+
+// Clients can ask that the account be forced to be new. If it exists this is an error.
+func TestNewAccountRequireNew(t *testing.T) {
+	// This has foo and bar accounts already.
+	s := simpleAccountServer(t)
+
+	c, cr, _ := newClientForServer(s)
+	connectOp := []byte("CONNECT {\"account\":\"foo\",\"new_account\":true}\r\n")
+	go c.parse(connectOp)
+	l, _ := cr.ReadString('\n')
+	if !strings.HasPrefix(l, "-ERR ") {
+		t.Fatalf("Expected an error")
+	}
+
+	// Now allow new accounts on the fly, make sure second time does not work.
+	opts := defaultServerOptions
+	opts.AllowNewAccounts = true
+	s = New(&opts)
+
+	c, cr, _ = newClientForServer(s)
+	err := c.parse(connectOp)
+	if err != nil {
+		t.Fatalf("Received an error trying to create an account: %v", err)
+	}
+
+	c, cr, _ = newClientForServer(s)
+	go c.parse(connectOp)
+	l, _ = cr.ReadString('\n')
+	if !strings.HasPrefix(l, "-ERR ") {
+		t.Fatalf("Expected an error")
+	}
+}

@@ -301,6 +301,27 @@ func (s *Server) logPid() error {
 	return ioutil.WriteFile(s.getOpts().PidFile, []byte(pidStr), 0660)
 }
 
+// newAccountsAllowed returns whether or not new accounts can be created on the fly.
+func (s *Server) newAccountsAllowed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.opts.AllowNewAccounts
+}
+
+func (s *Server) LookupOrRegisterAccount(name string) (*Account, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if acc, ok := s.accounts[name]; ok {
+		return acc, false
+	}
+	acc := &Account{
+		Name: name,
+		sl:   NewSublist(),
+	}
+	s.accounts[name] = acc
+	return acc, true
+}
+
 // RegisterAccount will register an account. The account must be new
 // or this call will fail.
 func (s *Server) RegisterAccount(name string) (*Account, error) {

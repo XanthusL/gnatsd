@@ -51,8 +51,11 @@ var (
 
 	// ErrAccountExists is returned when an account is attempted to be registered
 	// but already exists.
-	ErrAccountExists = errors.New("Account Already Exists")
+	ErrAccountExists = errors.New("Account Exists")
 
 	// ErrBadAccount represents a malformed or incorrect account.
 	ErrBadAccount = errors.New("Bad Account")
+
+	// ErrMissingAccount is returned when an account does not exist.
+	ErrMissingAccount = errors.New("Account Missing")
 )

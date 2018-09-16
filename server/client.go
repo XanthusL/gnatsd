@@ -259,6 +259,8 @@ type clientOpts struct {
 	Lang          string `json:"lang"`
 	Version       string `json:"version"`
 	Protocol      int    `json:"protocol"`
+	Account       string `json:"account,omitempty"`
+	AccountNew    bool   `json:"new_account,omitempty"`
 
 	// Routes only
 	Import *SubjectPermission `json:"import,omitempty"`
@@ -782,6 +784,8 @@ func (c *client) processConnect(arg []byte) error {
 	proto := c.opts.Protocol
 	verbose := c.opts.Verbose
 	lang := c.opts.Lang
+	account := c.opts.Account
+	accountNew := c.opts.AccountNew
 	c.mu.Unlock()
 
 	if srv != nil {
@@ -799,6 +803,38 @@ func (c *client) processConnect(arg []byte) error {
 		if ok := srv.checkAuthorization(c); !ok {
 			c.authViolation()
 			return ErrAuthorization
+		}
+
+		// Check for Account designation
+		if account != "" {
+			var acc *Account
+			var wasNew bool
+			if !srv.newAccountsAllowed() {
+				acc = srv.LookupAccount(account)
+				if acc == nil {
+					c.Errorf(ErrMissingAccount.Error())
+					c.sendErr("Account Not Found")
+					return ErrMissingAccount
+				} else if accountNew {
+					c.Errorf(ErrAccountExists.Error())
+					c.sendErr(ErrAccountExists.Error())
+					return ErrAccountExists
+				}
+			} else {
+				// We can create this one on the fly.
+				acc, wasNew = srv.LookupOrRegisterAccount(account)
+				if accountNew && !wasNew {
+					c.Errorf(ErrAccountExists.Error())
+					c.sendErr(ErrAccountExists.Error())
+					return ErrAccountExists
+				}
+			}
+			// If we are here we can register ourselves with the new account.
+			if err := c.RegisterWithAccount(acc); err != nil {
+				c.Errorf("Problem registering with account [%s]", account)
+				c.sendErr("Account Failed Registration")
+				return ErrBadAccount
+			}
 		}
 	}
 

@@ -63,6 +63,7 @@ type Options struct {
 	Nkeys            []*NkeyUser   `json:"-"`
 	Users            []*User       `json:"-"`
 	Accounts         []*Account    `json:"-"`
+	AllowNewAccounts bool          `json:"-"`
 	Username         string        `json:"-"`
 	Password         string        `json:"-"`
 	Authorization    string        `json:"-"`
